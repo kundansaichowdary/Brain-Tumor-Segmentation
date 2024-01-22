@@ -1,0 +1,175 @@
+Segemntation classes
+
+SEGMENT_CLASSES = {
+    0 : 'NOT tumor',
+    1 : 'NECROTIC/CORE', # or NON-ENHANCING tumor CORE
+    2 : 'EDEMA',
+    3 : 'ENHANCING' # original 4 -> converted into 3 later
+}
+
+In this context, we have two trained models for Brain Tumor segmentation. One model utilizes the U-Net architecture, while the other is trained with the Res-Net architecture. We applied active learning techniques and enhanced the U-Net model by incorporating Res-blocks. These Res-blocks were integrated as the encoding layer in the U-Net architecture, and the model was subsequently trained on the dataset.
+
+Here this the code for the basic U-net we trained on
+
+def build_unet(inputs, ker_init, dropout):
+    conv1 = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(inputs)
+    conv1 = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv1)
+    
+    pool = MaxPooling2D(pool_size=(2, 2))(conv1)
+    conv = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(pool)
+    conv = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv)
+    
+    pool1 = MaxPooling2D(pool_size=(2, 2))(conv)
+    conv2 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(pool1)
+    conv2 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv2)
+    
+    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+    conv3 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(pool2)
+    conv3 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv3)
+    
+    
+    pool4 = MaxPooling2D(pool_size=(2, 2))(conv3)
+    conv5 = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(pool4)
+    conv5 = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv5)
+    drop5 = Dropout(dropout)(conv5)
+
+    up7 = Conv2D(256, 2, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(UpSampling2D(size = (2,2))(drop5))
+    merge7 = concatenate([conv3,up7], axis = 3)
+    conv7 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(merge7)
+    conv7 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv7)
+
+    up8 = Conv2D(128, 2, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(UpSampling2D(size = (2,2))(conv7))
+    merge8 = concatenate([conv2,up8], axis = 3)
+    conv8 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(merge8)
+    conv8 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv8)
+
+    up9 = Conv2D(64, 2, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(UpSampling2D(size = (2,2))(conv8))
+    merge9 = concatenate([conv,up9], axis = 3)
+    conv9 = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(merge9)
+    conv9 = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv9)
+    
+    up = Conv2D(32, 2, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(UpSampling2D(size = (2,2))(conv9))
+    merge = concatenate([conv1,up], axis = 3)
+    conv = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(merge)
+    conv = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv)
+    
+    conv10 = Conv2D(4, (1,1), activation = 'softmax')(conv)
+    
+    return Model(inputs = inputs, outputs = conv10)
+
+input_layer = Input((IMG_SIZE, IMG_SIZE, 2))
+
+model = build_unet(input_layer, 'he_normal', 0.2)
+model.compile(loss="categorical_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), metrics = ['accuracy',tf.keras.metrics.MeanIoU(num_classes=4), dice_coef, precision, sensitivity, specificity, dice_coef_necrotic, dice_coef_edema ,dice_coef_enhancing] )
+
+
+Here this the code for the basic Res-net we trained on
+
+def build_unet(inputs, ker_init, dropout):
+    conv1 = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(inputs)
+    conv1 = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv1)
+    
+    pool = MaxPooling2D(pool_size=(2, 2))(conv1)
+    conv = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(pool)
+    conv = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv)
+    
+    pool1 = MaxPooling2D(pool_size=(2, 2))(conv)
+    conv2 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(pool1)
+    conv2 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv2)
+    
+    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+    conv3 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(pool2)
+    conv3 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv3)
+    
+    
+    pool4 = MaxPooling2D(pool_size=(2, 2))(conv3)
+    conv5 = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(pool4)
+    conv5 = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv5)
+    drop5 = Dropout(dropout)(conv5)
+
+
+    up7 = Conv2D(256, 2, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(UpSampling2D(size = (2,2))(drop5))
+    a1 = Conv2D(32, (15,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv3)
+    a2 = Conv2D(32, (13,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv3)
+    a3 = Conv2D(32, (11,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv3)
+    a4 = Conv2D(32, (9,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv3)
+    b1 = Conv2D(32, (1,15), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a1)
+    b2 = Conv2D(32, (1,13), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a2)
+    b3 = Conv2D(32, (1,11), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a3)
+    b4 = Conv2D(32, (1,9), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a4)
+    b5 = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv3)
+    s = b1+b2+b3+b4+b5
+    d = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(s)
+    e = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(d)
+    f = Conv2D(32, 1, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(e)
+    
+    merge7 = concatenate([f,up7])    
+    conv7 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(merge7)
+    conv7 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv7)
+
+    up8 = Conv2D(128, 2, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(UpSampling2D(size = (2,2))(conv7))
+    a1 = Conv2D(32, (15,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv2)
+    a2 = Conv2D(32, (13,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv2)
+    a3 = Conv2D(32, (11,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv2)
+    a4 = Conv2D(32, (9,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv2)
+    b1 = Conv2D(32, (1,15), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a1)
+    b2 = Conv2D(32, (1,13), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a2)
+    b3 = Conv2D(32, (1,11), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a3)
+    b4 = Conv2D(32, (1,9), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a4)
+    b5 = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv2)
+    s = b1+b2+b3+b4+b5
+    d = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(s)
+    e = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(d)
+    f = Conv2D(32, 1, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(e)
+
+    merge8 = concatenate([f,up8], axis = 3)    
+    conv8 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(merge8)
+    conv8 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv8)
+
+    up9 = Conv2D(64, 2, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(UpSampling2D(size = (2,2))(conv8))
+    a1 = Conv2D(32, (15,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv)
+    a2 = Conv2D(32, (13,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv)
+    a3 = Conv2D(32, (11,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv)
+    a4 = Conv2D(32, (9,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv)
+    b1 = Conv2D(32, (1,15), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a1)
+    b2 = Conv2D(32, (1,13), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a2)
+    b3 = Conv2D(32, (1,11), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a3)
+    b4 = Conv2D(32, (1,9), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a4)
+    b5 = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv)
+    s = b1+b2+b3+b4+b5   
+    d = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(s)
+    e = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(d)
+    f = Conv2D(32, 1, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(e)
+    
+    merge9 = concatenate([f,up9], axis = 3)
+    conv9 = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(merge9)
+    conv9 = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv9)
+    
+    up = Conv2D(32, 2, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(UpSampling2D(size = (2,2))(conv9))
+    a1 = Conv2D(32, (15,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv1)
+    a2 = Conv2D(32, (13,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv1)
+    a3 = Conv2D(32, (11,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv1)
+    a4 = Conv2D(32, (9,1), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv1)
+    b1 = Conv2D(32, (1,15), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a1)
+    b2 = Conv2D(32, (1,13), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a2)
+    b3 = Conv2D(32, (1,11), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a3)
+    b4 = Conv2D(32, (1,9), activation = 'relu', padding = 'same', kernel_initializer = ker_init)(a4)
+    b5 = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv1)
+    s = b1+b2+b3+b4+b5
+    d = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(s)
+    e = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(d)
+    f = Conv2D(32, 1, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(e)
+
+    merge = concatenate([f,up], axis = 3)    
+    conv = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(merge)
+    conv = Conv2D(32, 3, activation = 'relu', padding = 'same', kernel_initializer = ker_init)(conv)
+    
+    conv10 = Conv2D(4, (1,1), activation = 'softmax')(conv)
+    
+    return Model(inputs = inputs, outputs = conv10)
+
+input_layer = Input((IMG_SIZE, IMG_SIZE, 2))
+
+model = build_unet(input_layer, 'he_normal', 0.2)
+model.compile(loss="categorical_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), metrics = ['accuracy',tf.keras.metrics.MeanIoU(num_classes=4), dice_coef, precision, sensitivity, specificity, dice_coef_necrotic, dice_coef_edema ,dice_coef_enhancing] )
+
